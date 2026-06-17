@@ -499,6 +499,7 @@ export const defaultProcessor: Processor<schemas.$ZodDefault> = (schema, ctx, js
   const seen = ctx.seen.get(schema)!;
   seen.ref = def.innerType;
   json.default = JSON.parse(JSON.stringify(def.defaultValue));
+  json._zodDefault = json.default;
 };
 
 export const prefaultProcessor: Processor<schemas.$ZodPrefault> = (schema, ctx, json, params) => {

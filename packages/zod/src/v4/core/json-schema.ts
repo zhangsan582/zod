@@ -113,6 +113,7 @@ export type JSONSchema = {
 
   // internal
   _prefault?: unknown;
+  _zodDefault?: unknown;
 };
 
 // for backwards compatibility

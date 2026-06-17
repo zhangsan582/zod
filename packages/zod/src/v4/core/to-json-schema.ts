@@ -201,7 +201,7 @@ export function process<T extends schemas.$ZodType>(
   if (ctx.io === "input" && isTransforming(schema)) {
     // examples/defaults only apply to output type of pipe
     delete result.schema.examples;
-    delete result.schema.default;
+    if (!("_zodDefault" in result.schema)) delete result.schema.default;
   }
 
   // set prefault as default
@@ -438,6 +438,11 @@ export function finalize<T extends schemas.$ZodType>(
       }
     }
 
+    if ("_zodDefault" in schema) {
+      if (ctx.io === "input" && !defaultMatchesInputSchema(schema.default, schema, new Set())) delete schema.default;
+      delete schema._zodDefault;
+    }
+
     // execute overrides
     ctx.override({
       zodSchema: zodSchema as schemas.$ZodTypes,
@@ -586,6 +591,41 @@ function isTransforming(
   }
 
   return false;
+}
+
+function defaultMatchesInputSchema(value: unknown, schema: JSONSchema.BaseSchema, seen: Set<JSONSchema.BaseSchema>): boolean {
+  if (seen.has(schema)) return true;
+  seen.add(schema);
+
+  if ("const" in schema) return schema.const === value;
+  if (schema.enum) return schema.enum.includes(value as string | number | boolean | null);
+
+  if (schema.anyOf) return schema.anyOf.some((subschema) => schemaAllowsDefaultValue(value, subschema, seen));
+  if (schema.oneOf) return schema.oneOf.some((subschema) => schemaAllowsDefaultValue(value, subschema, seen));
+  if (schema.allOf) return schema.allOf.every((subschema) => schemaAllowsDefaultValue(value, subschema, seen));
+
+  if (schema.type) return valueMatchesJsonSchemaType(value, schema.type);
+
+  return true;
+}
+
+function schemaAllowsDefaultValue(
+  value: unknown,
+  schema: JSONSchema._JSONSchema,
+  seen: Set<JSONSchema.BaseSchema>
+): boolean {
+  if (schema === true) return true;
+  if (schema === false) return false;
+  return defaultMatchesInputSchema(value, schema, new Set(seen));
+}
+
+function valueMatchesJsonSchemaType(value: unknown, type: NonNullable<JSONSchema.BaseSchema["type"]>): boolean {
+  if (type === "integer") return Number.isInteger(value);
+  if (type === "number") return typeof value === "number";
+  if (type === "array") return Array.isArray(value);
+  if (type === "object") return typeof value === "object" && value !== null && !Array.isArray(value);
+  if (type === "null") return value === null;
+  return typeof value === type;
 }
 
 export type ZodStandardSchemaWithJSON<T> = StandardSchemaWithJSONProps<core.input<T>, core.output<T>>;
